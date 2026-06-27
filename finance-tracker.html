@@ -989,50 +989,6 @@
 </div>
 
 <div class="main">
-  <!-- Weekly Schedule (full width) -->
-  <div class="section">
-    <div class="section-header">
-      <span>📅 Weekly Schedule</span>
-      <div class="week-nav">
-        <button onclick="changeWeek(-1)">‹</button>
-        <span class="week-range-label" id="weekRangeLabel"></span>
-        <button onclick="changeWeek(1)">›</button>
-        <button class="week-today-btn" onclick="changeWeek(0)">Today</button>
-      </div>
-    </div>
-    <div class="section-body" style="padding:0; overflow:hidden;">
-      <div class="week-grid" id="weekGrid"></div>
-    </div>
-  </div>
-
-  <!-- Work Timer -->
-  <div class="section">
-    <div class="section-header">
-      <span>⏱️ Work Timer</span>
-    </div>
-    <div class="timer-section-body">
-      <div class="clock-wrap-inner">
-        <div class="clock-display" id="clockDisplay" onclick="toggleTimer()" title="Click to start / stop">00:00:00</div>
-        <div class="clock-date-label" id="clockDateLabel"></div>
-        <button class="timer-btn" id="timerBtn" onclick="toggleTimer()">▶ Start</button>
-        <div class="timer-stats">
-          <div class="timer-stat">
-            <div class="timer-stat-label">Session</div>
-            <div class="timer-stat-value" id="sessionTime">0h 0m</div>
-          </div>
-          <div class="timer-stat">
-            <div class="timer-stat-label">Today</div>
-            <div class="timer-stat-value" id="todayTotal">0h 0m</div>
-          </div>
-          <div class="timer-stat">
-            <div class="timer-stat-label">This Week</div>
-            <div class="timer-stat-value" id="weekTotal">0h 0m</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Summary Cards -->
   <div class="cards">
     <div class="card income">
@@ -1139,6 +1095,50 @@
           <div class="empty-state">
             <div class="empty-icon">📭</div>
             No transactions this month
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Weekly Schedule (full width) -->
+  <div class="section">
+    <div class="section-header">
+      <span>📅 Weekly Schedule</span>
+      <div class="week-nav">
+        <button onclick="changeWeek(-1)">‹</button>
+        <span class="week-range-label" id="weekRangeLabel"></span>
+        <button onclick="changeWeek(1)">›</button>
+        <button class="week-today-btn" onclick="changeWeek(0)">Today</button>
+      </div>
+    </div>
+    <div class="section-body" style="padding:0; overflow:hidden;">
+      <div class="week-grid" id="weekGrid"></div>
+    </div>
+  </div>
+
+  <!-- Work Timer -->
+  <div class="section">
+    <div class="section-header">
+      <span>⏱️ Work Timer</span>
+    </div>
+    <div class="timer-section-body">
+      <div class="clock-wrap-inner">
+        <div class="clock-display" id="clockDisplay" onclick="toggleTimer()" title="Click to start / stop">00:00:00</div>
+        <div class="clock-date-label" id="clockDateLabel"></div>
+        <button class="timer-btn" id="timerBtn" onclick="toggleTimer()">▶ Start</button>
+        <div class="timer-stats">
+          <div class="timer-stat">
+            <div class="timer-stat-label">Session</div>
+            <div class="timer-stat-value" id="sessionTime">0h 0m</div>
+          </div>
+          <div class="timer-stat">
+            <div class="timer-stat-label">Today</div>
+            <div class="timer-stat-value" id="todayTotal">0h 0m</div>
+          </div>
+          <div class="timer-stat">
+            <div class="timer-stat-label">This Week</div>
+            <div class="timer-stat-value" id="weekTotal">0h 0m</div>
           </div>
         </div>
       </div>
