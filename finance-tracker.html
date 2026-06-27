@@ -1,0 +1,1903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
+<title>Finance Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f5f7fa;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1a202c;
+    --muted: #718096;
+    --accent: #4f46e5;
+    --accent-light: #eef2ff;
+    --green: #16a34a;
+    --green-light: #dcfce7;
+    --red: #dc2626;
+    --red-light: #fee2e2;
+    --yellow: #d97706;
+    --yellow-light: #fef3c7;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  .header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header h1 span { font-size: 20px; }
+
+  .month-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .month-nav button {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text);
+    transition: background 0.15s;
+  }
+
+  .month-nav button:hover { background: var(--bg); }
+
+  .month-label {
+    font-weight: 600;
+    font-size: 15px;
+    min-width: 120px;
+    text-align: center;
+  }
+
+  .main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Summary Cards */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+
+  .card-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .card-amount {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .card-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .card.income .card-amount { color: var(--green); }
+  .card.income { border-top: 3px solid var(--green); }
+  .card.expense .card-amount { color: var(--red); }
+  .card.expense { border-top: 3px solid var(--red); }
+  .card.balance { border-top: 3px solid var(--accent); }
+  .card.balance .card-amount { color: var(--accent); }
+  .card.balance .card-amount.negative { color: var(--red); }
+
+  /* Two column layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  /* Section card */
+  .section {
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .section-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .section-body { padding: 20px; }
+
+  /* Add Transaction Form */
+  .form-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 16px;
+  }
+
+  .tab-btn {
+    padding: 8px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--muted);
+  }
+
+  .tab-btn.active.income { background: var(--green-light); color: var(--green); }
+  .tab-btn.active.expense { background: var(--red-light); color: var(--red); }
+
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .form-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--bg);
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+
+  .form-group input:focus,
+  .form-group select:focus {
+    border-color: var(--accent);
+    background: white;
+  }
+
+  .amount-input-wrap {
+    position: relative;
+  }
+
+  .amount-input-wrap .currency-symbol {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .amount-input-wrap input {
+    padding-left: 26px;
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 4px;
+  }
+
+  .submit-btn.income { background: var(--green); color: white; }
+  .submit-btn.income:hover { background: #15803d; }
+  .submit-btn.expense { background: var(--red); color: white; }
+  .submit-btn.expense:hover { background: #b91c1c; }
+
+  /* Transactions list */
+  .tx-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 380px;
+    overflow-y: auto;
+  }
+
+  .tx-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+
+  .tx-item:hover { background: #f0f4ff; }
+
+  .tx-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .tx-icon.income { background: var(--green-light); }
+  .tx-icon.expense { background: var(--red-light); }
+
+  .tx-info { flex: 1; min-width: 0; }
+
+  .tx-desc {
+    font-weight: 500;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tx-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .tx-amount {
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .tx-amount.income { color: var(--green); }
+  .tx-amount.expense { color: var(--red); }
+
+  .tx-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 4px;
+    border-radius: 4px;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+  }
+
+  .tx-item:hover .tx-delete { opacity: 1; }
+  .tx-delete:hover { color: var(--red); }
+
+  .empty-state {
+    text-align: center;
+    padding: 32px 20px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .empty-state .empty-icon { font-size: 32px; margin-bottom: 8px; }
+
+  /* Chart */
+  .chart-wrap {
+    position: relative;
+    height: 220px;
+  }
+
+  /* Category breakdown */
+  .cat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .cat-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .cat-emoji { font-size: 18px; width: 24px; text-align: center; }
+
+  .cat-bar-wrap { flex: 1; }
+
+  .cat-name {
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    color: var(--text);
+  }
+
+  .cat-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+
+  .cat-bar-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.4s ease;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--text);
+    color: white;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.2s;
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* Badge */
+  .badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 600;
+  }
+
+  .badge.income { background: var(--green-light); color: var(--green); }
+  .badge.expense { background: var(--red-light); color: var(--red); }
+
+  /* Export button */
+  .export-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .export-btn:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+
+  /* ──── Weekly Schedule + Work Timer ─────────────────────────── */
+  .clock-wrap, .clock-wrap-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4px 0 0;
+    width: 100%;
+  }
+
+  .clock-display {
+    font-size: 46px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    font-family: 'SF Mono', 'Fira Code', ui-monospace, monospace;
+    cursor: pointer;
+    transition: color 0.2s;
+    user-select: none;
+    line-height: 1.1;
+  }
+
+  .clock-display:hover { opacity: 0.85; }
+  .clock-display.running { color: var(--accent); }
+
+  .clock-date-label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  .timer-btn {
+    padding: 10px 36px;
+    border: none;
+    border-radius: 99px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--accent);
+    color: white;
+    margin-bottom: 16px;
+    letter-spacing: 0.02em;
+  }
+
+  .timer-btn.running { background: var(--red); }
+  .timer-btn:hover { filter: brightness(1.1); transform: scale(1.02); }
+  .timer-btn:active { transform: scale(0.98); }
+
+  .timer-stats {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .timer-stat {
+    flex: 1;
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 10px 8px;
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .timer-stat-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+
+  .timer-stat-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Week nav */
+  .week-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .week-nav button {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text);
+    transition: background 0.15s;
+    line-height: 1;
+  }
+
+  .week-nav button:hover { background: var(--bg); }
+
+  .week-nav .week-today-btn {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 10px;
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .week-nav .week-today-btn:hover { background: var(--accent-light); }
+
+  .week-range-label {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 140px;
+    text-align: center;
+  }
+
+  /* Weekly Schedule — time grid */
+  .week-grid {
+    display: block;
+    overflow-y: auto;
+    max-height: 540px;
+  }
+
+  /* Cal event blocks */
+  .cal-event {
+    position: absolute;
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 3px 18px 3px 6px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: background 0.12s;
+    z-index: 1;
+    box-sizing: border-box;
+  }
+
+  .cal-event:hover { background: #ddd6fe; }
+
+  .cal-event.done {
+    background: #f8fafc;
+    border-left-color: #94a3b8;
+  }
+
+  .cal-event-time {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    font-family: 'SF Mono', ui-monospace, monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+  }
+
+  .cal-event.done .cal-event-time { text-decoration: line-through; color: var(--muted); }
+
+  .cal-event-body {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--accent);
+    line-height: 1.3;
+    margin-top: 1px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+  }
+
+  .cal-event.done .cal-event-body { text-decoration: line-through; color: var(--muted); }
+
+  .cal-event-del {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    opacity: 0;
+    background: rgba(255,255,255,0.85);
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 11px;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: opacity 0.15s, color 0.15s;
+  }
+
+  .cal-event:hover .cal-event-del { opacity: 1; }
+  .cal-event-del:hover { color: var(--red) !important; }
+
+  /* Cal day headers */
+  .cal-day-hdr {
+    flex: 1;
+    text-align: center;
+    padding: 6px 4px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .cal-day-hdr-name {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+
+  .cal-day-hdr-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .cal-day-hdr-num.today { background: var(--accent); color: white; }
+
+  .cal-day-hdr-timer {
+    font-size: 9px;
+    color: var(--accent);
+    font-weight: 600;
+    min-height: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cal-add-btn {
+    font-size: 15px;
+    line-height: 1;
+    color: var(--muted);
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    width: 20px;
+    height: 18px;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+    padding: 0;
+  }
+
+  .cal-day-hdr:hover .cal-add-btn { opacity: 1; }
+  .cal-add-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  @media (hover: none) {
+    .cal-event-del { opacity: 0.6; }
+    .cal-add-btn { opacity: 0.6; }
+  }
+
+  .week-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .week-day-name {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+
+  .week-day-num {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+
+  .week-day-num.today {
+    background: var(--accent);
+    color: white;
+  }
+
+  .week-day-timer {
+    font-size: 10px;
+    color: var(--accent);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-height: 14px;
+  }
+
+  .week-tasks {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 160px;
+  }
+
+  .week-task {
+    background: var(--accent-light);
+    border-radius: 6px;
+    width: 100%;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 0.1s;
+    text-align: left;
+    padding: 0;
+    overflow: hidden;
+    display: block;
+  }
+
+  .week-task:hover { background: #ddd6fe; }
+
+  .week-task.done {
+    background: #f8fafc;
+    border-color: var(--border);
+  }
+
+  .week-task.done:hover { background: #f1f5f9; }
+
+  .week-task-header {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 4px 5px 2px;
+  }
+
+  .week-task-emoji {
+    font-size: 11px;
+    flex-shrink: 0;
+    line-height: 1;
+    width: 16px;
+    min-width: 16px;
+    text-align: center;
+    display: inline-block;
+  }
+
+  .week-task-time {
+    flex: 1;
+    font-size: 10px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    font-family: 'SF Mono', ui-monospace, monospace;
+    letter-spacing: -0.2px;
+    white-space: nowrap;
+  }
+
+  .week-task.done .week-task-time {
+    text-decoration: line-through;
+    color: var(--muted);
+  }
+
+  .week-task-del {
+    opacity: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 0 2px;
+    line-height: 1;
+    border-radius: 3px;
+    flex-shrink: 0;
+    transition: opacity 0.15s, color 0.15s;
+  }
+
+  .week-task:hover .week-task-del { opacity: 1; }
+  .week-task-del:hover { color: var(--red) !important; }
+
+  .week-task-body {
+    font-size: 10px;
+    padding: 0 6px 5px;
+    color: var(--accent);
+    line-height: 1.4;
+    font-weight: 500;
+    word-break: break-word;
+  }
+
+  .week-task.done .week-task-body {
+    text-decoration: line-through;
+    color: var(--muted);
+  }
+
+  @media (hover: none) {
+    .week-task-del { opacity: 0.5; }
+  }
+
+  .week-add-btn {
+    font-size: 15px;
+    color: var(--muted);
+    background: none;
+    border: 1.5px dashed var(--border);
+    border-radius: 6px;
+    width: 100%;
+    padding: 4px 0;
+    cursor: pointer;
+    transition: all 0.15s;
+    opacity: 0;
+    margin-top: 2px;
+  }
+
+  .week-day:hover .week-add-btn { opacity: 1; }
+  .week-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .week-task-input {
+    width: 100%;
+    font-size: 11px;
+    padding: 5px 8px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    outline: none;
+    background: var(--accent-light);
+    color: var(--accent);
+    font-family: inherit;
+    font-weight: 500;
+  }
+
+  /* Work Timer centered row */
+  .timer-section-body {
+    display: flex;
+    justify-content: center;
+    padding: 16px 20px;
+  }
+
+  .clock-wrap-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  @media (max-width: 640px) {
+    .clock-display { font-size: 30px; letter-spacing: 2px; }
+    .week-day-name { font-size: 9px; }
+    .week-day-num { width: 26px; height: 26px; font-size: 12px; }
+    .week-task { font-size: 10px; }
+    .timer-stat-value { font-size: 13px; }
+    .week-add-btn { opacity: 1; }
+    .week-grid { gap: 5px; }
+    .week-range-label { min-width: 100px; font-size: 11px; }
+  }
+
+  /* Always show delete on touch devices */
+  @media (hover: none) {
+    .tx-delete { opacity: 1; color: #cbd5e0; }
+    .tx-delete:active { color: var(--red); }
+  }
+
+  @media (max-width: 640px) {
+    body { font-size: 15px; -webkit-text-size-adjust: 100%; }
+
+    .header { padding: 12px 16px; gap: 8px; flex-wrap: wrap; }
+    .header h1 { font-size: 16px; }
+    .month-label { font-size: 13px; min-width: 90px; }
+    .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    .main { padding: 14px 12px; gap: 14px; }
+
+    .cards {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .card { padding: 12px; }
+    .card-amount { font-size: 18px; }
+    .card-label { font-size: 10px; }
+    .card-sub { font-size: 10px; }
+
+    .two-col { grid-template-columns: 1fr; }
+
+    /* Bigger touch targets on form */
+    .form-group input,
+    .form-group select {
+      font-size: 16px; /* prevents iOS zoom */
+      padding: 12px;
+      min-height: 44px;
+    }
+    .amount-input-wrap input { padding-left: 28px; }
+    .tab-btn { padding: 10px; font-size: 14px; min-height: 44px; }
+    .submit-btn { padding: 14px; font-size: 15px; min-height: 48px; }
+
+    .month-nav button { min-width: 36px; min-height: 36px; }
+
+    .tx-item { padding: 12px; }
+    .tx-desc { font-size: 14px; }
+    .tx-amount { font-size: 15px; }
+    .tx-delete { min-width: 32px; min-height: 32px; display: flex; align-items: center; justify-content: center; }
+
+    .chart-wrap { height: 180px; }
+
+    .export-btn { padding: 6px 10px; font-size: 12px; }
+    .export-btn .export-label { display: none; }
+  }
+
+  @media (max-width: 380px) {
+    .cards { grid-template-columns: 1fr; }
+    .card-amount { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>💷</span> Finance Tracker</h1>
+  <div class="header-right">
+    <div class="month-nav">
+      <button onclick="changeMonth(-1)">‹</button>
+      <span class="month-label" id="monthLabel"></span>
+      <button onclick="changeMonth(1)">›</button>
+    </div>
+    <button class="export-btn" onclick="exportCSV()" title="Export all data as CSV">
+      ⬇️ <span class="export-label">Export CSV</span>
+    </button>
+    <span id="syncStatus" style="font-size:12px;font-weight:500;color:var(--muted);"></span>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Weekly Schedule (full width) -->
+  <div class="section">
+    <div class="section-header">
+      <span>📅 Weekly Schedule</span>
+      <div class="week-nav">
+        <button onclick="changeWeek(-1)">‹</button>
+        <span class="week-range-label" id="weekRangeLabel"></span>
+        <button onclick="changeWeek(1)">›</button>
+        <button class="week-today-btn" onclick="changeWeek(0)">Today</button>
+      </div>
+    </div>
+    <div class="section-body" style="padding:0; overflow:hidden;">
+      <div class="week-grid" id="weekGrid"></div>
+    </div>
+  </div>
+
+  <!-- Work Timer -->
+  <div class="section">
+    <div class="section-header">
+      <span>⏱️ Work Timer</span>
+    </div>
+    <div class="timer-section-body">
+      <div class="clock-wrap-inner">
+        <div class="clock-display" id="clockDisplay" onclick="toggleTimer()" title="Click to start / stop">00:00:00</div>
+        <div class="clock-date-label" id="clockDateLabel"></div>
+        <button class="timer-btn" id="timerBtn" onclick="toggleTimer()">▶ Start</button>
+        <div class="timer-stats">
+          <div class="timer-stat">
+            <div class="timer-stat-label">Session</div>
+            <div class="timer-stat-value" id="sessionTime">0h 0m</div>
+          </div>
+          <div class="timer-stat">
+            <div class="timer-stat-label">Today</div>
+            <div class="timer-stat-value" id="todayTotal">0h 0m</div>
+          </div>
+          <div class="timer-stat">
+            <div class="timer-stat-label">This Week</div>
+            <div class="timer-stat-value" id="weekTotal">0h 0m</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="cards">
+    <div class="card income">
+      <div class="card-label">Income</div>
+      <div class="card-amount" id="totalIncome">£0.00</div>
+      <div class="card-sub" id="incomeCount">0 transactions</div>
+    </div>
+    <div class="card expense">
+      <div class="card-label">Expenses</div>
+      <div class="card-amount" id="totalExpense">£0.00</div>
+      <div class="card-sub" id="expenseCount">0 transactions</div>
+    </div>
+    <div class="card balance">
+      <div class="card-label">Balance</div>
+      <div class="card-amount" id="totalBalance">£0.00</div>
+      <div class="card-sub" id="balanceSub">This month</div>
+    </div>
+  </div>
+
+  <!-- Chart + Categories -->
+  <div class="two-col">
+    <div class="section">
+      <div class="section-header">
+        <span>📊 Monthly Overview</span>
+      </div>
+      <div class="section-body">
+        <div class="chart-wrap">
+          <canvas id="monthlyChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span>🏷️ Spending by Category</span>
+      </div>
+      <div class="section-body">
+        <div class="cat-list" id="catList">
+          <div class="empty-state"><div class="empty-icon">📂</div>No expenses yet</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add + History -->
+  <div class="two-col">
+    <div class="section">
+      <div class="section-header">
+        <span>➕ Add Transaction</span>
+      </div>
+      <div class="section-body">
+        <div class="form-tabs">
+          <button class="tab-btn active expense" id="tabExpense" onclick="setTab('expense')">💸 Expense</button>
+          <button class="tab-btn income" id="tabIncome" onclick="setTab('income')">💰 Income</button>
+        </div>
+        <form class="form-row" onsubmit="addTransaction(event)">
+          <div class="form-group">
+            <label>Amount</label>
+            <div class="amount-input-wrap">
+              <span class="currency-symbol">£</span>
+              <input type="number" id="amount" placeholder="0.00" step="0.01" min="0.01" required>
+            </div>
+          </div>
+          <div class="form-group" id="categoryGroup">
+            <label>Category</label>
+            <select id="category">
+              <option value="Food & Dining">🍽️ Food & Dining</option>
+              <option value="Transport">🚗 Transport</option>
+              <option value="Shopping">🛍️ Shopping</option>
+              <option value="Bills & Utilities">🏠 Bills & Utilities</option>
+              <option value="Rental">🏡 Rental</option>
+              <option value="Other">📦 Other</option>
+            </select>
+          </div>
+          <div class="form-group" id="incomeSourceGroup" style="display:none">
+            <label>Source</label>
+            <select id="incomeSource">
+              <option value="Salary">💼 Salary</option>
+              <option value="Freelance">💻 Freelance</option>
+              <option value="Investment">📈 Investment</option>
+              <option value="Other">📦 Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <input type="text" id="description" placeholder="What was this for?" maxlength="80">
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="txDate" required>
+          </div>
+          <button type="submit" class="submit-btn expense" id="submitBtn">Add Expense</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span>📋 Recent Transactions</span>
+        <span class="badge expense" id="txBadge">0</span>
+      </div>
+      <div class="section-body" style="padding: 12px 16px;">
+        <div class="tx-list" id="txList">
+          <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            No transactions this month
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ─── Firebase ─────────────────────────────────────────────────────────────
+  const firebaseConfig = {
+    apiKey: "AIzaSyCngV8E8XOaS7vI1C77aHOr2sgJS9xjnTQ",
+    authDomain: "finance-tracker-fb05a.firebaseapp.com",
+    databaseURL: "https://finance-tracker-fb05a-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "finance-tracker-fb05a",
+    storageBucket: "finance-tracker-fb05a.firebasestorage.app",
+    messagingSenderId: "37397284789",
+    appId: "1:37397284789:web:0e4faafaa785fbe8dcfbfc"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const fbDb = firebase.database();
+
+  // ─── Local cache (mirrors Firebase in real time) ──────────────────────────
+  let DB = { transactions: [], timer: {}, schedule: {} };
+
+  // ─── State ────────────────────────────────────────────────────────────────
+  let currentTab = 'expense';
+  let viewMonth = new Date().getMonth();
+  let viewYear = new Date().getFullYear();
+  let monthlyChart = null;
+
+  const CATEGORY_META = {
+    'Food & Dining':   { emoji: '🍽️', color: '#f97316' },
+    'Transport':       { emoji: '🚗', color: '#3b82f6' },
+    'Shopping':        { emoji: '🛍️', color: '#a855f7' },
+    'Bills & Utilities': { emoji: '🏠', color: '#ef4444' },
+    'Rental':          { emoji: '🏡', color: '#14b8a6' },
+    'Other':           { emoji: '📦', color: '#6b7280' },
+    'Salary':          { emoji: '💼', color: '#16a34a' },
+    'Freelance':       { emoji: '💻', color: '#22c55e' },
+    'Investment':      { emoji: '📈', color: '#84cc16' },
+  };
+
+  // ─── Data layer (reads from cache, writes to Firebase) ───────────────────
+  function loadData() { return DB.transactions; }
+  function saveData(data) {
+    DB.transactions = data;
+    const obj = {};
+    data.forEach(t => { obj['id' + t.id] = t; });
+    fbDb.ref('transactions').set(data.length ? obj : null);
+  }
+
+  function fmt(n) {
+    return '£' + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  // ─── Month nav ───────────────────────────────────────────────────────────
+  function changeMonth(dir) {
+    viewMonth += dir;
+    if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    if (viewMonth < 0)  { viewMonth = 11; viewYear--; }
+    render();
+  }
+
+  function updateMonthLabel() {
+    const d = new Date(viewYear, viewMonth, 1);
+    document.getElementById('monthLabel').textContent =
+      d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  }
+
+  // ─── Tab ─────────────────────────────────────────────────────────────────
+  function setTab(tab) {
+    currentTab = tab;
+    document.getElementById('tabExpense').className = 'tab-btn' + (tab === 'expense' ? ' active expense' : '');
+    document.getElementById('tabIncome').className  = 'tab-btn' + (tab === 'income'  ? ' active income'  : '');
+    document.getElementById('submitBtn').className  = 'submit-btn ' + tab;
+    document.getElementById('submitBtn').textContent = tab === 'expense' ? 'Add Expense' : 'Add Income';
+    document.getElementById('categoryGroup').style.display    = tab === 'expense' ? '' : 'none';
+    document.getElementById('incomeSourceGroup').style.display = tab === 'income'  ? '' : 'none';
+  }
+
+  // ─── Add transaction ─────────────────────────────────────────────────────
+  function addTransaction(e) {
+    e.preventDefault();
+    const amount = parseFloat(document.getElementById('amount').value);
+    const description = document.getElementById('description').value.trim();
+    const date = document.getElementById('txDate').value;
+    const category = currentTab === 'expense'
+      ? document.getElementById('category').value
+      : document.getElementById('incomeSource').value;
+
+    const tx = {
+      id: Date.now(),
+      type: currentTab,
+      amount,
+      category,
+      description: description || category,
+      date
+    };
+
+    const data = loadData();
+    data.unshift(tx);
+    saveData(data);
+
+    // reset form
+    document.getElementById('amount').value = '';
+    document.getElementById('description').value = '';
+
+    showToast(currentTab === 'expense' ? '💸 Expense recorded!' : '💰 Income recorded!');
+    render();
+  }
+
+  // ─── Delete ───────────────────────────────────────────────────────────────
+  function deleteTransaction(id) {
+    const data = loadData().filter(t => t.id !== id);
+    saveData(data);
+    render();
+    showToast('🗑️ Transaction removed');
+  }
+
+  // ─── Toast ────────────────────────────────────────────────────────────────
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+  function render() {
+    updateMonthLabel();
+    const all = loadData();
+    const txs = all.filter(t => {
+      const d = new Date(t.date);
+      return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
+    });
+
+    // Summary
+    const income  = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const expense = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const balance = income - expense;
+
+    document.getElementById('totalIncome').textContent  = fmt(income);
+    document.getElementById('totalExpense').textContent = fmt(expense);
+
+    const balEl = document.getElementById('totalBalance');
+    balEl.textContent = (balance < 0 ? '-' : '') + fmt(balance);
+    balEl.className = 'card-amount' + (balance < 0 ? ' negative' : '');
+
+    const inCount = txs.filter(t => t.type === 'income').length;
+    const exCount = txs.filter(t => t.type === 'expense').length;
+    document.getElementById('incomeCount').textContent  = inCount + ' transaction' + (inCount !== 1 ? 's' : '');
+    document.getElementById('expenseCount').textContent = exCount + ' transaction' + (exCount !== 1 ? 's' : '');
+    document.getElementById('txBadge').textContent = txs.length;
+
+    renderTxList(txs);
+    renderCategories(txs);
+    renderChart(all);
+  }
+
+  function renderTxList(txs) {
+    const el = document.getElementById('txList');
+    if (txs.length === 0) {
+      el.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div>No transactions this month</div>';
+      return;
+    }
+    const sorted = [...txs].sort((a, b) => new Date(b.date) - new Date(a.date));
+    el.innerHTML = sorted.map(t => {
+      const meta = CATEGORY_META[t.category] || { emoji: '📦', color: '#6b7280' };
+      const d = new Date(t.date + 'T00:00:00');
+      const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+      return `
+        <div class="tx-item">
+          <div class="tx-icon ${t.type}">${meta.emoji}</div>
+          <div class="tx-info">
+            <div class="tx-desc">${escHtml(t.description)}</div>
+            <div class="tx-meta">${t.category} · ${dateStr}</div>
+          </div>
+          <div class="tx-amount ${t.type}">${t.type === 'income' ? '+' : '-'}${fmt(t.amount)}</div>
+          <button class="tx-delete" onclick="deleteTransaction(${t.id})" title="Delete">✕</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderCategories(txs) {
+    const expenses = txs.filter(t => t.type === 'expense');
+    const el = document.getElementById('catList');
+    if (expenses.length === 0) {
+      el.innerHTML = '<div class="empty-state"><div class="empty-icon">📂</div>No expenses yet</div>';
+      return;
+    }
+    const totals = {};
+    expenses.forEach(t => { totals[t.category] = (totals[t.category] || 0) + t.amount; });
+    const max = Math.max(...Object.values(totals));
+    const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+
+    const COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#a855f7','#14b8a6'];
+    el.innerHTML = sorted.map(([cat, amt], i) => {
+      const meta = CATEGORY_META[cat] || { emoji: '📦' };
+      const pct = (amt / max * 100).toFixed(0);
+      const color = CATEGORY_META[cat]?.color || COLORS[i % COLORS.length];
+      return `
+        <div class="cat-item">
+          <div class="cat-emoji">${meta.emoji}</div>
+          <div class="cat-bar-wrap">
+            <div class="cat-name">
+              <span>${cat}</span>
+              <span style="color:var(--muted)">${fmt(amt)}</span>
+            </div>
+            <div class="cat-bar">
+              <div class="cat-bar-fill" style="width:${pct}%;background:${color}"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderChart(all) {
+    // Last 6 months
+    const months = [];
+    const incomeData = [];
+    const expenseData = [];
+    for (let i = 5; i >= 0; i--) {
+      let m = viewMonth - i;
+      let y = viewYear;
+      while (m < 0) { m += 12; y--; }
+      const label = new Date(y, m, 1).toLocaleDateString('en-GB', { month: 'short' });
+      const txs = all.filter(t => {
+        const d = new Date(t.date);
+        return d.getFullYear() === y && d.getMonth() === m;
+      });
+      months.push(label);
+      incomeData.push(txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0));
+      expenseData.push(txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0));
+    }
+
+    const ctx = document.getElementById('monthlyChart').getContext('2d');
+    if (monthlyChart) monthlyChart.destroy();
+    monthlyChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: months,
+        datasets: [
+          {
+            label: 'Income',
+            data: incomeData,
+            backgroundColor: 'rgba(22,163,74,0.8)',
+            borderRadius: 6,
+            borderSkipped: false,
+          },
+          {
+            label: 'Expenses',
+            data: expenseData,
+            backgroundColor: 'rgba(220,38,38,0.8)',
+            borderRadius: 6,
+            borderSkipped: false,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { font: { size: 12 }, padding: 12, boxWidth: 12, boxHeight: 12 }
+          },
+          tooltip: {
+            callbacks: {
+              label: ctx => ' ' + ctx.dataset.label + ': £' + ctx.parsed.y.toFixed(2)
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 12 } } },
+          y: {
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            ticks: {
+              font: { size: 11 },
+              callback: v => '£' + v
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // ─── Export CSV ───────────────────────────────────────────────────────────
+  function exportCSV() {
+    const data = loadData();
+    if (data.length === 0) { showToast('⚠️ No data to export'); return; }
+    const rows = [['Date','Type','Category','Description','Amount (£)']];
+    const sorted = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+    sorted.forEach(t => {
+      rows.push([
+        t.date,
+        t.type,
+        t.category,
+        '"' + t.description.replace(/"/g, '""') + '"',
+        (t.type === 'expense' ? '-' : '') + t.amount.toFixed(2)
+      ]);
+    });
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'finance-' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('✅ CSV downloaded!');
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ─── Sync status ─────────────────────────────────────────────────────────
+  function setSyncStatus(msg, color) {
+    const el = document.getElementById('syncStatus');
+    if (el) { el.textContent = msg; el.style.color = color || 'var(--muted)'; }
+  }
+
+  // ─── Work Timer ───────────────────────────────────────────────────────────
+  let timerRunning = false;
+  let timerStart = null;
+
+  function getTimerStore() { return DB.timer || {}; }
+  function saveTimerStore(d) {
+    DB.timer = d;
+    fbDb.ref('timer').set(d);
+  }
+
+  function dateKey(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function todayKey() { return dateKey(new Date()); }
+
+  function getWeekDates() {
+    const today = new Date();
+    const dow = today.getDay();
+    const offsetToMon = (dow === 0 ? -6 : 1 - dow);
+    return Array.from({length: 7}, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() + offsetToMon + i + weekOffset * 7);
+      return d;
+    });
+  }
+
+  function fmtMs(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+
+  function toggleTimer() {
+    if (!timerRunning) {
+      timerRunning = true;
+      timerStart = Date.now();
+      document.getElementById('timerBtn').textContent = '⏸ Stop';
+      document.getElementById('timerBtn').classList.add('running');
+      document.getElementById('clockDisplay').classList.add('running');
+    } else {
+      const elapsed = Date.now() - timerStart;
+      const store = getTimerStore();
+      const key = todayKey();
+      store[key] = (store[key] || 0) + elapsed;
+      saveTimerStore(store);
+      timerRunning = false;
+      timerStart = null;
+      document.getElementById('timerBtn').textContent = '▶ Start';
+      document.getElementById('timerBtn').classList.remove('running');
+      document.getElementById('clockDisplay').classList.remove('running');
+      showToast('✅ Work time saved!');
+    }
+    updateTimerStats();
+  }
+
+  function updateTimerStats() {
+    const store = getTimerStore();
+    const key = todayKey();
+    const sessionMs = timerRunning && timerStart ? Date.now() - timerStart : 0;
+    const todayMs = (store[key] || 0) + sessionMs;
+    const weekMs = getWeekDates().reduce((s, d) => {
+      const k = dateKey(d);
+      return s + (store[k] || 0);
+    }, 0) + sessionMs;
+
+    document.getElementById('sessionTime').textContent = fmtMs(sessionMs);
+    document.getElementById('todayTotal').textContent = fmtMs(todayMs);
+    document.getElementById('weekTotal').textContent = fmtMs(weekMs);
+
+    // Update today's badge in the week grid
+    const badgeEl = document.getElementById('day-timer-' + key);
+    if (badgeEl) badgeEl.textContent = todayMs > 0 ? fmtMs(todayMs) : '';
+  }
+
+  function startClock() {
+    function tick() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      const el = document.getElementById('clockDisplay');
+      if (el) el.textContent = `${hh}:${mm}:${ss}`;
+      const dl = document.getElementById('clockDateLabel');
+      if (dl) dl.textContent = now.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+      if (timerRunning) updateTimerStats();
+    }
+    tick();
+    setInterval(tick, 1000);
+  }
+
+  // ─── Weekly Schedule ──────────────────────────────────────────────────────
+  let weekOffset = 0; // 0 = current week, -1 = last week, +1 = next week, etc.
+
+  function changeWeek(dir) {
+    weekOffset = (dir === 0) ? 0 : weekOffset + dir;
+    renderWeekGrid();
+  }
+
+  function getSchedule() {
+    const raw = DB.schedule || {};
+    const out = {};
+    Object.entries(raw).forEach(([k, tasks]) => {
+      let arr = Array.isArray(tasks) ? tasks : (tasks ? Object.values(tasks) : []);
+      out[k] = arr.map(t => typeof t === 'string' ? {text: t, done: false} : t);
+    });
+    return out;
+  }
+  function saveSchedule(d) {
+    DB.schedule = d;
+    fbDb.ref('schedule').set(d);
+  }
+
+  function parseTask(task) {
+    const text = typeof task === 'string' ? task : (task.text || '');
+    const done = typeof task === 'object' ? !!task.done : false;
+    const m = text.match(/^([\p{Emoji}\u{FE0F}]\s*)(\d{2}:\d{2}-\d{2}:\d{2})\s*([\s\S]*)$/u);
+    if (m) return { emoji: m[1].trim(), time: m[2], body: m[3].trim(), done };
+    return { emoji: '', time: '', body: text, done };
+  }
+
+  function renderWeekGrid() {
+    const days = getWeekDates();
+    const schedule = getSchedule();
+    const store = getTimerStore();
+    const todayStr = todayKey();
+    const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    const first = days[0], last = days[6];
+    const fmtD = d => d.toLocaleDateString('en-GB', {day:'numeric', month:'short'});
+    const wrl = document.getElementById('weekRangeLabel');
+    if (wrl) wrl.textContent = `${fmtD(first)} – ${fmtD(last)}`;
+
+    const grid = document.getElementById('weekGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const START_HOUR = 9;
+    const END_HOUR   = 19;
+    const PX_PER_MIN = 1;          // 1 px = 1 min  →  60 px = 1 hr
+    const GUTTER     = 50;         // width of the time label column
+    const TOTAL_H    = (END_HOUR - START_HOUR) * 60 * PX_PER_MIN; // 600 px
+
+    // ── Sticky header row ──────────────────────────────
+    const hdrRow = document.createElement('div');
+    hdrRow.style.cssText = `display:flex; padding-left:${GUTTER}px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card); z-index:10;`;
+
+    days.forEach((d, i) => {
+      const key = dateKey(d);
+      const isToday = key === todayStr;
+      const sessionMs = isToday && timerRunning && timerStart ? Date.now() - timerStart : 0;
+      const workedMs  = (store[key] || 0) + sessionMs;
+
+      const hdr = document.createElement('div');
+      hdr.className = 'cal-day-hdr';
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'cal-day-hdr-name';
+      nameEl.textContent = DAY_NAMES[i];
+
+      const numEl = document.createElement('div');
+      numEl.className = 'cal-day-hdr-num' + (isToday ? ' today' : '');
+      numEl.textContent = d.getDate();
+
+      const timerEl = document.createElement('div');
+      timerEl.className = 'cal-day-hdr-timer';
+      timerEl.id = `day-timer-${key}`;
+      timerEl.textContent = workedMs > 0 ? fmtMs(workedMs) : '';
+
+      const addBtn = document.createElement('button');
+      addBtn.className = 'cal-add-btn';
+      addBtn.textContent = '+';
+      addBtn.title = 'Add item (format: 🏗 09:00-10:00 Task)';
+      addBtn.onclick = (e) => {
+        e.stopPropagation();
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'week-task-input';
+        inp.placeholder = '🏗 09:00-10:00 Task…';
+        inp.maxLength = 100;
+        inp.style.cssText = 'font-size:10px; width:90%; margin-top:2px;';
+        addBtn.replaceWith(inp);
+        inp.focus();
+        const commit = () => {
+          const val = inp.value.trim();
+          if (val) {
+            const sc = getSchedule();
+            if (!sc[key]) sc[key] = [];
+            sc[key].push({text: val, done: false});
+            saveSchedule(sc);
+          }
+          renderWeekGrid();
+        };
+        inp.addEventListener('keydown', ev => {
+          if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+          if (ev.key === 'Escape') renderWeekGrid();
+        });
+        inp.addEventListener('blur', commit);
+      };
+
+      hdr.appendChild(nameEl);
+      hdr.appendChild(numEl);
+      hdr.appendChild(timerEl);
+      hdr.appendChild(addBtn);
+      hdrRow.appendChild(hdr);
+    });
+
+    grid.appendChild(hdrRow);
+
+    // ── Body: time gutter + day columns ───────────────
+    const bodyWrap = document.createElement('div');
+    bodyWrap.style.cssText = `display:flex; position:relative;`;
+
+    // Time gutter
+    const timeGutter = document.createElement('div');
+    timeGutter.style.cssText = `width:${GUTTER}px; flex-shrink:0; position:relative; height:${TOTAL_H}px;`;
+
+    for (let h = START_HOUR; h <= END_HOUR; h++) {
+      const top = (h - START_HOUR) * 60 * PX_PER_MIN;
+      const lbl = document.createElement('div');
+      lbl.textContent = `${String(h).padStart(2,'0')}:00`;
+      lbl.style.cssText = `position:absolute; right:8px; top:${top}px; transform:translateY(-50%); font-size:9px; font-weight:600; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums;`;
+      timeGutter.appendChild(lbl);
+    }
+    bodyWrap.appendChild(timeGutter);
+
+    // Days area
+    const daysArea = document.createElement('div');
+    daysArea.style.cssText = `flex:1; position:relative; height:${TOTAL_H + 16}px; min-width:0;`;
+
+    // Hour lines (full width)
+    for (let h = START_HOUR; h <= END_HOUR; h++) {
+      const top = (h - START_HOUR) * 60 * PX_PER_MIN;
+      const line = document.createElement('div');
+      line.style.cssText = `position:absolute; left:0; right:0; top:${top}px; height:1px; background:var(--border); z-index:0;`;
+      daysArea.appendChild(line);
+    }
+
+    // Half-hour lines (lighter)
+    for (let h = START_HOUR; h < END_HOUR; h++) {
+      const top = (h - START_HOUR) * 60 * PX_PER_MIN + 30;
+      const line = document.createElement('div');
+      line.style.cssText = `position:absolute; left:0; right:0; top:${top}px; height:1px; background:#f1f5f9; z-index:0;`;
+      daysArea.appendChild(line);
+    }
+
+    // Column dividers + events
+    days.forEach((d, i) => {
+      const key     = dateKey(d);
+      const rawTasks = schedule[key];
+      const tasks   = (rawTasks && rawTasks.length > 0)
+        ? rawTasks
+        : (SCHEDULE_SEED[key] || []).map(t => typeof t === 'string' ? {text: t, done: false} : t);
+      const isToday = key === todayStr;
+      const colPct  = (i / 7) * 100;
+      const wPct    = 100 / 7;
+
+      // Vertical divider
+      if (i > 0) {
+        const div = document.createElement('div');
+        div.style.cssText = `position:absolute; left:${colPct}%; top:0; bottom:0; width:1px; background:var(--border); z-index:0;`;
+        daysArea.appendChild(div);
+      }
+
+      // Today highlight
+      if (isToday) {
+        const hl = document.createElement('div');
+        hl.style.cssText = `position:absolute; left:${colPct}%; top:0; bottom:0; width:${wPct}%; background:rgba(79,70,229,0.025); z-index:0;`;
+        daysArea.appendChild(hl);
+      }
+
+      // Event blocks
+      tasks.forEach((taskRaw, ti) => {
+        const parsed = parseTask(taskRaw);
+        if (!parsed.time) return;
+
+        const tm = parsed.time.match(/^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/);
+        if (!tm) return;
+
+        const startMin = parseInt(tm[1]) * 60 + parseInt(tm[2]);
+        const endMin   = parseInt(tm[3]) * 60 + parseInt(tm[4]);
+        const topPx    = (startMin - START_HOUR * 60) * PX_PER_MIN;
+        const heightPx = Math.max((endMin - startMin) * PX_PER_MIN, 24);
+
+        if (topPx < 0 || topPx >= TOTAL_H) return;
+
+        const ev = document.createElement('div');
+        ev.className = 'cal-event' + (parsed.done ? ' done' : '');
+        ev.style.cssText = `left:calc(${colPct}% + 2px); width:calc(${wPct}% - 5px); top:${topPx}px; height:${heightPx}px;`;
+        ev.title = parsed.done ? 'Click to unmark' : 'Click to mark done';
+
+        ev.onclick = (e) => {
+          if (e.target.classList.contains('cal-event-del')) return;
+          const sc = getSchedule();
+          if (sc[key] && sc[key][ti]) {
+            sc[key][ti].done = !sc[key][ti].done;
+            saveSchedule(sc);
+            renderWeekGrid();
+          }
+        };
+
+        const timeEl = document.createElement('div');
+        timeEl.className = 'cal-event-time';
+        timeEl.textContent = (parsed.emoji ? parsed.emoji + ' ' : '') + parsed.time;
+        ev.appendChild(timeEl);
+
+        if (heightPx >= 40) {
+          const bodyEl = document.createElement('div');
+          bodyEl.className = 'cal-event-body';
+          bodyEl.textContent = parsed.body;
+          ev.appendChild(bodyEl);
+        }
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'cal-event-del';
+        delBtn.textContent = '×';
+        delBtn.onclick = (e) => {
+          e.stopPropagation();
+          const sc = getSchedule();
+          if (sc[key]) sc[key].splice(ti, 1);
+          if (sc[key] && !sc[key].length) delete sc[key];
+          saveSchedule(sc);
+          renderWeekGrid();
+        };
+        ev.appendChild(delBtn);
+
+        daysArea.appendChild(ev);
+      });
+    });
+
+    bodyWrap.appendChild(daysArea);
+    grid.appendChild(bodyWrap);
+  }
+
+  // ─── Seed schedule data ───────────────────────────────────────────────────
+  const SCHEDULE_SEED = {
+    '2026-06-22': [
+      '🏗 09:00-11:30 CV positioning (30m) + pandas core: loc/iloc, filter, groupby, agg',
+      '💻 11:30-13:00 3 easy SQL + 2 pandas',
+      '📊 14:00-16:00 Story-bank doc; draft Case 1 (variance optimisation)',
+      '🎤 17:30-18:30 Write 90-sec intro'
+    ],
+    '2026-06-23': [
+      '🏗 09:00-11:30 ML theory: bias/variance, overfitting, CV, train/val/test',
+      '💻 11:30-13:00 3 med SQL + 2 pandas (merge)',
+      '📊 14:00-16:00 Finish Case 1 + business-terms line',
+      '🎤 17:30-18:30 Record + refine pitch'
+    ],
+    '2026-06-24': [
+      '🏗 09:00-11:30 SQL: window fns, CTEs, subqueries',
+      '💻 11:30-13:00 4 window-fn SQL, timed',
+      '📊 14:00-16:00 Explore dataset for Fri dashboard',
+      '🎤 17:30-18:30 Story #1 spoken, timed'
+    ],
+    '2026-06-25': [
+      '🏗 09:00-11:30 Cloud: free-tier setup; storage, compute, warehouse',
+      '💻 11:30-13:00 3 SQL + 2 Python (string/date)',
+      '📊 14:00-16:00 Load dataset to warehouse; query it',
+      '🎤 17:30-18:30 Draft Story #2 (anomaly)'
+    ],
+    '2026-06-26': [
+      '🏗 09:00-11:30 Tableau: connect data, calc fields, build dashboard',
+      '💻 11:30-13:00 3 SQL + 2 pandas (pivot)',
+      '📊 14:00-16:00 Continue Tableau dashboard',
+      '🎤 17:30-18:30 Story #2 spoken'
+    ],
+    '2026-06-27': [
+      '🏗 09:00-11:30 A/B testing: power, sample size, p-vals vs CIs, pitfalls',
+      '💻 11:30-13:00 1 experiment case + 2 stats Q',
+      '📊 14:00-16:00 Map A/B work to a story',
+      '🎤 17:30-18:30 Draft Story #3 (pipeline)'
+    ],
+    '2026-06-28': [
+      '🏗 09:00-11:30 Consolidate notes; redo 2 missed problems',
+      '💻 11:30-13:00 Timed 5-problem SQL set',
+      '🎤 17:30-18:30 Spoken behavioural mock; plan next week'
+    ]
+  };
+
+  function seedSchedule() {
+    // Only seed if Firebase has no schedule data yet (first time)
+    const sc = getSchedule();
+    if (Object.keys(sc).length > 0) return;
+    const fresh = {};
+    Object.entries(SCHEDULE_SEED).forEach(([key, seedTasks]) => {
+      fresh[key] = seedTasks.map(t => ({
+        text: typeof t === 'string' ? t : t.text,
+        done: false
+      }));
+    });
+    saveSchedule(fresh);
+  }
+
+  // ─── Init ─────────────────────────────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
+    setSyncStatus('⟳ Connecting…', 'var(--muted)');
+
+    const loaded = { tx: false, timer: false, schedule: false };
+    let appStarted = false;
+
+    function tryStart() {
+      if (loaded.tx && loaded.timer && loaded.schedule && !appStarted) {
+        appStarted = true;
+        seedSchedule();
+        startClock();
+        renderWeekGrid();
+        updateTimerStats();
+        render();
+        setSyncStatus('✓ Synced', 'var(--green)');
+        setTimeout(() => setSyncStatus(''), 3000);
+      }
+    }
+
+    fbDb.ref('transactions').on('value', snap => {
+      const val = snap.val();
+      DB.transactions = val ? Object.values(val).sort((a, b) => b.id - a.id) : [];
+      if (!loaded.tx) { loaded.tx = true; tryStart(); }
+      else if (appStarted) render();
+    });
+
+    fbDb.ref('timer').on('value', snap => {
+      DB.timer = snap.val() || {};
+      if (!loaded.timer) { loaded.timer = true; tryStart(); }
+      else if (appStarted) updateTimerStats();
+    });
+
+    fbDb.ref('schedule').on('value', snap => {
+      DB.schedule = snap.val() || {};
+      if (!loaded.schedule) { loaded.schedule = true; tryStart(); }
+      else if (appStarted) renderWeekGrid();
+    });
+  });
+</script>
+</body>
+</html>
