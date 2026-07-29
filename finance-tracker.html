@@ -9,6 +9,7 @@
 <title>Finance Tracker</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <style>
   :root {
@@ -32,6 +33,124 @@
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ─── Auth gate ─────────────────────────────────────────────────────────── */
+  #appShell { display: none; }
+  body.authed #appShell { display: block; }
+  body.authed #authGate { display: none; }
+  /* Hide the login card until Firebase reports whether we're already signed in,
+     so returning users don't get a flash of the sign-in form. */
+  body:not(.auth-ready) #authGate .auth-card { visibility: hidden; }
+
+  #authGate {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .auth-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    padding: 32px;
+    width: 100%;
+    max-width: 380px;
+  }
+
+  .auth-card h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .auth-card p.auth-sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 22px;
+  }
+
+  .auth-card label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .auth-card input {
+    width: 100%;
+    padding: 11px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 16px;
+  }
+
+  .auth-card input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+  }
+
+  .auth-card button {
+    width: 100%;
+    padding: 11px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #fff;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .auth-card button:disabled { opacity: 0.6; cursor: default; }
+
+  .auth-error {
+    background: var(--red-light);
+    color: var(--red);
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    display: none;
+  }
+
+  .auth-error.show { display: block; }
+
+  .auth-note {
+    margin-top: 18px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .signout-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .signout-btn:hover { color: var(--text); border-color: var(--muted); }
 
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -973,6 +1092,24 @@
 </head>
 <body>
 
+<div id="authGate">
+  <div class="auth-card">
+    <h2><span>🔒</span> Finance Tracker</h2>
+    <p class="auth-sub">Sign in to access your data.</p>
+    <div class="auth-error" id="authError"></div>
+    <form id="authForm" autocomplete="on">
+      <label for="authEmail">Email</label>
+      <input type="email" id="authEmail" autocomplete="username" required>
+      <label for="authPassword">Password</label>
+      <input type="password" id="authPassword" autocomplete="current-password" required>
+      <button type="submit" id="authSubmit">Sign in</button>
+    </form>
+    <p class="auth-note">Accounts are created by the owner in the Firebase console. Contact them if you need access.</p>
+  </div>
+</div>
+
+<div id="appShell">
+
 <div class="header">
   <h1><span>💷</span> Finance Tracker</h1>
   <div class="header-right">
@@ -985,6 +1122,7 @@
       ⬇️ <span class="export-label">Export CSV</span>
     </button>
     <span id="syncStatus" style="font-size:12px;font-weight:500;color:var(--muted);"></span>
+    <button class="signout-btn" id="signOutBtn" title="Sign out">Sign out</button>
   </div>
 </div>
 
@@ -1148,6 +1286,8 @@
 
 <div class="toast" id="toast"></div>
 
+</div><!-- /#appShell -->
+
 <script>
   // ─── Firebase ─────────────────────────────────────────────────────────────
   const firebaseConfig = {
@@ -1161,6 +1301,12 @@
   };
   firebase.initializeApp(firebaseConfig);
   const fbDb = firebase.database();
+  const fbAuth = firebase.auth();
+
+  // All app data lives under this node. Database rules restrict it to an
+  // allowlist of signed-in accounts (see /members in the Firebase console).
+  const DATA_ROOT = 'shared/finance';
+  const dataRef = path => fbDb.ref(DATA_ROOT + '/' + path);
 
   // ─── Local cache (mirrors Firebase in real time) ──────────────────────────
   let DB = { transactions: [], timer: {}, schedule: {} };
@@ -1189,7 +1335,7 @@
     DB.transactions = data;
     const obj = {};
     data.forEach(t => { obj['id' + t.id] = t; });
-    fbDb.ref('transactions').set(data.length ? obj : null);
+    dataRef('transactions').set(data.length ? obj : null);
   }
 
   function fmt(n) {
@@ -1472,7 +1618,7 @@
   function getTimerStore() { return DB.timer || {}; }
   function saveTimerStore(d) {
     DB.timer = d;
-    fbDb.ref('timer').set(d);
+    dataRef('timer').set(d);
   }
 
   function dateKey(d) {
@@ -1498,26 +1644,51 @@
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
 
+  function setTimerUI(running) {
+    document.getElementById('timerBtn').textContent = running ? '⏸ Stop' : '▶ Start';
+    document.getElementById('timerBtn').classList.toggle('running', running);
+    document.getElementById('clockDisplay').classList.toggle('running', running);
+  }
+
   function toggleTimer() {
     if (!timerRunning) {
       timerRunning = true;
       timerStart = Date.now();
-      document.getElementById('timerBtn').textContent = '⏸ Stop';
-      document.getElementById('timerBtn').classList.add('running');
-      document.getElementById('clockDisplay').classList.add('running');
+      // Save running session to Firebase so page-close doesn't lose time
+      dataRef('timerSession').set({ startedAt: timerStart, day: todayKey() });
+      setTimerUI(true);
     } else {
       const elapsed = Date.now() - timerStart;
       const store = getTimerStore();
       const key = todayKey();
       store[key] = (store[key] || 0) + elapsed;
       saveTimerStore(store);
+      // Clear running session
+      dataRef('timerSession').remove();
       timerRunning = false;
       timerStart = null;
-      document.getElementById('timerBtn').textContent = '▶ Start';
-      document.getElementById('timerBtn').classList.remove('running');
-      document.getElementById('clockDisplay').classList.remove('running');
+      setTimerUI(false);
       showToast('✅ Work time saved!');
     }
+    updateTimerStats();
+  }
+
+  function restoreTimerSession(session) {
+    if (!session || !session.startedAt) return;
+    // If the session was from a previous day, close it out
+    if (session.day !== todayKey()) {
+      const store = getTimerStore();
+      // Credit time until midnight of that day (approximate: just add full elapsed)
+      const elapsed = Date.now() - session.startedAt;
+      store[session.day] = (store[session.day] || 0) + elapsed;
+      saveTimerStore(store);
+      dataRef('timerSession').remove();
+      return;
+    }
+    // Resume the session
+    timerRunning = true;
+    timerStart = session.startedAt;
+    setTimerUI(true);
     updateTimerStats();
   }
 
@@ -1575,7 +1746,7 @@
   }
   function saveSchedule(d) {
     DB.schedule = d;
-    fbDb.ref('schedule').set(d);
+    dataRef('schedule').set(d);
   }
 
   function parseTask(task) {
@@ -1858,18 +2029,94 @@
     saveSchedule(fresh);
   }
 
+  // ─── Auth ─────────────────────────────────────────────────────────────────
+  function authErrorMessage(err) {
+    switch (err && err.code) {
+      case 'auth/invalid-email':        return 'That email address is not valid.';
+      case 'auth/user-disabled':        return 'This account has been disabled.';
+      case 'auth/user-not-found':
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential':   return 'Wrong email or password.';
+      case 'auth/too-many-requests':    return 'Too many attempts. Wait a moment and try again.';
+      case 'auth/network-request-failed': return 'Network error. Check your connection.';
+      default: return (err && err.message) || 'Sign-in failed.';
+    }
+  }
+
+  function initAuthUI(onSignedIn) {
+    const form   = document.getElementById('authForm');
+    const email  = document.getElementById('authEmail');
+    const pass   = document.getElementById('authPassword');
+    const submit = document.getElementById('authSubmit');
+    const errBox = document.getElementById('authError');
+    let started = false;
+
+    // Stay signed in on this device until sign-out is pressed.
+    fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      errBox.classList.remove('show');
+      submit.disabled = true;
+      submit.textContent = 'Signing in…';
+      fbAuth.signInWithEmailAndPassword(email.value.trim(), pass.value)
+        .catch(err => {
+          errBox.textContent = authErrorMessage(err);
+          errBox.classList.add('show');
+        })
+        .finally(() => {
+          submit.disabled = false;
+          submit.textContent = 'Sign in';
+          pass.value = '';
+        });
+    });
+
+    document.getElementById('signOutBtn').addEventListener('click', () => {
+      fbAuth.signOut()
+        .then(() => location.reload())
+        .catch(() => alert('Could not sign out — check your connection and try again.'));
+    });
+
+    // A rejected write means the rules turned us down; say so instead of failing silently.
+    window.addEventListener('unhandledrejection', e => {
+      const msg = (e.reason && (e.reason.code || e.reason.message)) || '';
+      if (String(msg).includes('PERMISSION_DENIED') || String(msg).includes('permission_denied')) {
+        e.preventDefault();
+        setSyncStatus('✕ Save rejected', 'var(--red)');
+      }
+    });
+
+    fbAuth.onAuthStateChanged(user => {
+      document.body.classList.add('auth-ready');
+      if (user) {
+        document.body.classList.add('authed');
+        if (!started) { started = true; onSignedIn(user); }
+      } else {
+        document.body.classList.remove('authed');
+        if (started) { location.reload(); return; }  // session ended remotely — reset cleanly
+        email.focus();
+      }
+    });
+  }
+
   // ─── Init ─────────────────────────────────────────────────────────────────
   window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
+    initAuthUI(startApp);
+  });
+
+  function startApp() {
     setSyncStatus('⟳ Connecting…', 'var(--muted)');
 
-    const loaded = { tx: false, timer: false, schedule: false };
+    const loaded = { tx: false, timer: false, schedule: false, session: false };
     let appStarted = false;
+    let pendingSession = null;
 
     function tryStart() {
-      if (loaded.tx && loaded.timer && loaded.schedule && !appStarted) {
+      if (loaded.tx && loaded.timer && loaded.schedule && loaded.session && !appStarted) {
         appStarted = true;
         seedSchedule();
+        restoreTimerSession(pendingSession);
         startClock();
         renderWeekGrid();
         updateTimerStats();
@@ -1879,25 +2126,40 @@
       }
     }
 
-    fbDb.ref('transactions').on('value', snap => {
+    function onDenied(err) {
+      if (err && err.code === 'PERMISSION_DENIED') {
+        setSyncStatus('✕ No access', 'var(--red)');
+        alert('Your account is signed in but is not on the access list for this tracker. Ask the owner to add your user ID under /members in the Firebase console.');
+      } else {
+        setSyncStatus('✕ Sync error', 'var(--red)');
+      }
+    }
+
+    dataRef('transactions').on('value', snap => {
       const val = snap.val();
       DB.transactions = val ? Object.values(val).sort((a, b) => b.id - a.id) : [];
       if (!loaded.tx) { loaded.tx = true; tryStart(); }
       else if (appStarted) render();
-    });
+    }, onDenied);
 
-    fbDb.ref('timer').on('value', snap => {
+    dataRef('timer').on('value', snap => {
       DB.timer = snap.val() || {};
       if (!loaded.timer) { loaded.timer = true; tryStart(); }
       else if (appStarted) updateTimerStats();
-    });
+    }, onDenied);
 
-    fbDb.ref('schedule').on('value', snap => {
+    dataRef('schedule').on('value', snap => {
       DB.schedule = snap.val() || {};
       if (!loaded.schedule) { loaded.schedule = true; tryStart(); }
       else if (appStarted) renderWeekGrid();
-    });
-  });
+    }, onDenied);
+
+    dataRef('timerSession').once('value', snap => {
+      pendingSession = snap.val();
+      loaded.session = true;
+      tryStart();
+    }, onDenied);
+  }
 </script>
 </body>
 </html>
